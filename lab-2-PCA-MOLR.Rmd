@@ -1,0 +1,235 @@
+---
+title: "ESM 244 Lab 2"
+author: "Hanna Buechi"
+date: "1/17/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+0. Attach packages
+```{r}
+
+library(tidyverse)
+library(janitor)
+library(MASS) # warning: functions have the same name as select in tidyverse
+library(ggrepel)
+library(RColorBrewer)
+library(factoextra)
+library(ggbiplot)
+library(shinythemes)
+
+```
+
+If you want to override (set) a function manually throughout an entire workspace, you can assign the function name explicity:
+
+```{r}
+
+select <- dplyr::select # the select from dplyr, not from MASS, will be the default select function # also dplyr::select to call out that function everytime instead of making it default
+
+```
+
+###1. Ordinal logistic regression for political party affiliation by ethnicity, age, sex
+
+```{r}
+
+pol_party <- read_csv("pol_party.csv") %>% 
+  clean_names() %>% 
+  select(participant_id:read_carefully) # what does this do? part of wrangling # changed something about the titles of the columns
+
+# A little more wrangling
+
+pol_df <- pol_party %>% 
+  select(birth_year, gender, ethnicity, political_party) %>% 
+  filter(birth_year > 1900, political_party != "NA", political_party <= 7) %>% # only keep certain data points
+  mutate(age = 2016 - birth_year) # add a new column with mutate
+
+# we have data with a logical rank associated, but there aren't meaningful difference between the ranks
+# Political party: 1 = very liberal, 7 = very conservative
+
+# When doing OLR we want our dependent variable to be of class ORDERED FACTOR
+
+# Factors have different discrete levels -- ordering them... is obvious.
+
+pol_df$political_party <- factor(pol_df$political_party, ordered = TRUE, levels = c("1","2","3","4","5","6","7"))
+
+pol_df$ethnicity <- factor(pol_df$ethnicity)
+pol_df$gender <- factor(pol_df$gender)
+
+                                
+```
+
+Basic data exploration and visualization:
+
+```{r}
+
+counts_eth <- pol_df %>% 
+  group_by(ethnicity, political_party) %>% 
+  tally() # super weighted to white respondents!!!!!
+
+counts_g <- pol_df %>% 
+  group_by(gender, political_party) %>% 
+  tally() # so many female liberals
+
+# you hope that there are at least 15 observations across each (combination of?) groups
+
+ggplot(pol_df, aes(x = political_party)) +
+  geom_histogram(aes(fill = ethnicity), stat = "count") + # add the counts of each bin
+  scale_fill_brewer(palette = "YlGnBu") +
+  facet_wrap(~ethnicity, scales = "free") # separate graphs by ethnicity, don't care if scales are the same # different numbers of bins # stacked bars without facet_wrap()
+
+```
+
+#   THESE DATA ARE PRECARIOUS AND N IS TOO SMALL FOR GROUPS!! so biased...
+
+```{r}
+
+
+### THIS IS NOT PUBLISHABLE DATA
+
+pol_model <- polr(political_party ~ age + gender + ethnicity, data = pol_df) # data in variables must be the correct class
+
+summary(pol_model) # no p-value! Yay!
+
+# values in table are log odds with respect to reference variables
+
+# age = 0.0012, very small, as age increases, small increase in person ranking them higher on the political party scale
+
+# gender: ref = F, positive correlation, male more likely to rank higher on political scale (more conservative) than female (all else held equal)
+
+# Intercepts associated with the splits: this is how we find the explicit equations associated with each split, along with odds/prop equation, we can find probabilities
+
+exp(coef(pol_model)) # transform to ODDS; >1 higher probability of selected higher rank, =1 no difference
+
+###
+
+# Once we've decided on a model, we can always make predictions using it:
+
+predictions <- predict(pol_model, type = "probs") # predict needs a model to use, based on the probabilities the model calculated # probability of person (each row) with probability they selected each political party level
+
+df <- data.frame(pol_df, predictions) # makes them one dataframe, cool to see how well the model would predict each actual data point, eventually you can visualize model predictions and actual data
+
+```
+
+###2. Principal components analysis (PCA)
+
+Using WorldBank environmental indicators
+
+```{r}
+
+wb_10 <- read_csv("wb_10.csv") %>% 
+  select(-X1) %>%  # get rid of the first column
+  column_to_rownames('code') # cool! code becomes row name, not in df anymore
+
+wb_pca <- prcomp(wb_10[3:8], scale = TRUE) # continuous variables only # variables probably have very different scales, so normalize
+
+summary(wb_pca) # explain over 75% in PC1 and PC2
+
+
+ggbiplot(wb_pca, groups = wb_10$region) + # colored based on region
+  geom_text_repel(label = rownames(wb_10), size = 2, segment.size = 0.2) + # adds the point text # could we label based on a column?
+  theme_bw()
+
+# clusters are really similar in multivariate space # USA is way out there producing GHG, etc....
+
+# factoextra package (built to help visualize outcomes of ordination methods)
+
+# screeplot:
+
+fviz_screeplot(wb_pca)
+
+# See contributions of variables to difference components:
+
+fviz_contrib(wb_pca, choice = "var", axes = 1, top = 6) # axes = 2 switches to second PC, top 6 PCs
+
+# Biplot showing points and vectors:
+
+fviz_pca_biplot(wb_pca,
+                col.var = "cos2", # how well represented variables are on the first PC # lighter colors are better represented in the biplot, aka. in PC1 # just look at the loadings of the PCs to see variables that contribute to other PCs (like 3, 4, etc.)
+                label = "var",
+                repel = TRUE) # nicer biplot, we can do a few extra things than in ggbiplot()
+
+```
+
+###2. Shiny app
+
+Be careful of brackets and parantheses.
+
+New Shiny web app.
+
+Move (copy to) data into the folder that is created.
+
+Delete everything in app.R file except 
+
+# Run the application 
+shinyApp(ui = ui, server = server)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
